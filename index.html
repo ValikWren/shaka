@@ -6,7 +6,6 @@
 <title>Reproductor</title>
 <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
 <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
-<!-- Plugin EME para soporte DRM (ClearKey, Widevine, etc.) -->
 <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-eme@5.0.1/dist/videojs-contrib-eme.min.js"></script>
 <style>
     html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
@@ -21,6 +20,7 @@
               controls preload="auto" playsinline muted
               oncontextmenu="return false;"></video-js>
 </div>
+
 <script>
 document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 document.addEventListener('keydown', function(e) {
@@ -31,8 +31,10 @@ document.addEventListener('keydown', function(e) {
 });
 document.addEventListener('dragstart', function(e) { e.preventDefault(); });
 </script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+
     var PARENT_ORIGIN = (function() {
         try { return new URL(document.referrer).origin; } catch (e) { return null; }
     })();
@@ -47,25 +49,47 @@ document.addEventListener('DOMContentLoaded', function () {
         return decodeURIComponent(escape(atob(s)));
     }
 
-    // Inicializar Video.js
-    var player = videojs('player', {
-        controls: true,
-        autoplay: true,
-        muted: true,
-        playsinline: true,
-        preload: 'auto',
-        controlBar: {
-            pictureInPictureToggle: true,
-            playbackRateMenuButton: true,
+    function hexToBytes(hex) {
+        hex = hex.replace(/^0x/, '');
+        if (hex.length % 2 !== 0) hex = '0' + hex;
+        var bytes = new Uint8Array(hex.length / 2);
+        for (var i = 0; i < hex.length; i += 2) {
+            bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
         }
-    });
-
-    // Activar el plugin EME para DRM
-    if (player.eme) {
-        player.eme();
+        return bytes;
     }
 
-    // Detectar tipo de manifiesto por extensión/parámetro
+    function bytesToBase64Url(bytes) {
+        var binary = '';
+        for (var i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function hexToBase64Url(hex) {
+        return bytesToBase64Url(hexToBytes(hex));
+    }
+
+    function base64UrlToHex(s) {
+        s = s.replace(/-/g, '+').replace(/_/g, '/');
+        while (s.length % 4) s += '=';
+        var bin = atob(s);
+        var out = '';
+        for (var i = 0; i < bin.length; i++) {
+            out += ('0' + bin.charCodeAt(i).toString(16)).slice(-2);
+        }
+        return out.toLowerCase();
+    }
+
+    function normalizeHexKey(value) {
+        if (typeof value !== 'string') return value;
+        if (/[^0-9a-fA-F]/.test(value)) {
+            try { return base64UrlToHex(value); } catch (e) { return value; }
+        }
+        return value.toLowerCase();
+    }
+
     function detectType(url) {
         var lower = url.split('?')[0].toLowerCase();
         if (lower.endsWith('.mpd')) return 'application/dash+xml';
@@ -74,7 +98,20 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'application/vnd.apple.mpegurl';
     }
 
-    // Notificar estados al parent
+    var player = videojs('player', {
+        controls: true,
+        autoplay: true,
+        muted: true,
+        playsinline: true,
+        preload: 'auto',
+        controlBar: {
+            pictureInPictureToggle: true,
+            playbackRateMenuButton: true
+        }
+    });
+
+    if (player.eme) player.eme();
+
     player.on('waiting', function() {
         notifyParent({ type: 'PLAYER_STATE', state: 'buffering' });
     });
@@ -83,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     player.on('error', function() {
         var err = player.error();
-        console.error('Video.js error:', err);
         notifyParent({
             type: 'PLAYER_STATE',
             state: 'error',
@@ -92,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Control de volumen/mute desde el parent
     window.addEventListener('message', function(event) {
         if (PARENT_ORIGIN && event.origin !== PARENT_ORIGIN) return;
         var msg = event.data;
@@ -101,16 +136,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (typeof msg.volume === 'number') player.volume(msg.volume);
     });
 
-    // Parámetros de la URL
     var params = new URLSearchParams(window.location.search);
     var urlParam = params.get('u');
     var needsDrm = params.get('drm') === '1';
     var nameParam = params.get('name');
 
     if (nameParam) {
-        try {
-            document.title = b64urlDecode(nameParam);
-        } catch (e) {}
+        try { document.title = b64urlDecode(nameParam); } catch (e) {}
     }
 
     if (!urlParam) {
@@ -126,16 +158,53 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    function loadSource(url, drmConfig) {
+    function loadSource(url, clearKeys) {
         var srcOptions = {
             src: url,
             type: detectType(url)
         };
 
-        if (drmConfig && drmConfig.clearKeys) {
+        if (clearKeys) {
+            var keysHex = {};
+            for (var kid in clearKeys) {
+                keysHex[normalizeHexKey(kid)] = normalizeHexKey(clearKeys[kid]);
+            }
+
             srcOptions.keySystems = {
                 'org.w3.clearkey': {
-                    keys: drmConfig.clearKeys
+                    getLicense: function(emeOptions, keyMessage, callback) {
+                        try {
+                            var request = JSON.parse(new TextDecoder().decode(keyMessage));
+                            var kids = request.kids || [];
+                            var jwkKeys = [];
+
+                            for (var i = 0; i < kids.length; i++) {
+                                var kidHex = base64UrlToHex(kids[i]);
+                                var keyHex = keysHex[kidHex];
+
+                                if (!keyHex) {
+                                    keyHex = clearKeys[kidHex] || clearKeys[kids[i]];
+                                }
+
+                                if (!keyHex) {
+                                    callback(new Error('key not found'));
+                                    return;
+                                }
+
+                                jwkKeys.push({
+                                    kty: 'oct',
+                                    alg: 'A128KW',
+                                    kid: kids[i],
+                                    k: hexToBase64Url(keyHex)
+                                });
+                            }
+
+                            var license = JSON.stringify({ keys: jwkKeys });
+                            callback(null, new TextEncoder().encode(license));
+                        } catch (err) {
+                            callback(err);
+                        }
+                    }
                 }
             };
         }
@@ -159,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!msg || msg.type !== 'DRM_KEYS') return;
             clearTimeout(_drmTimeout);
             window.removeEventListener('message', drmListener);
-            loadSource(mediaUrl, { clearKeys: msg.clearKeys });
+            loadSource(mediaUrl, msg.clearKeys);
         });
     } else {
         loadSource(mediaUrl, null);
