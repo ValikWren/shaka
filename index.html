@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/shaka-player.ui.js"></script>
 <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/videojs-contrib-eme@5.0.1/dist/videojs-contrib-eme.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js"></script>
 
 <style>
     :root {
@@ -25,6 +26,7 @@
     .video-js { width: 100%; height: 100%; }
     .vjs-big-play-centered .vjs-big-play-button { top: 50%; left: 50%; transform: translate(-50%, -50%); }
     .hidden { display: none !important; }
+    #mpegts-video { width: 100%; height: 100%; background: #000; display: block; }
 </style>
 </head>
 <body>
@@ -41,6 +43,10 @@
     <video-js id="vjs-player" class="video-js vjs-default-skin vjs-big-play-centered"
               controls preload="auto" playsinline muted
               oncontextmenu="return false;"></video-js>
+</div>
+
+<div id="mpegts-wrap" class="video-container hidden" oncontextmenu="return false;">
+    <video id="mpegts-video" autoplay playsinline muted controls oncontextmenu="return false;"></video>
 </div>
 
 <script>
@@ -110,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function startShaka(url) {
         document.getElementById('shaka-wrap').classList.remove('hidden');
         document.getElementById('vjs-wrap').classList.add('hidden');
+        document.getElementById('mpegts-wrap').classList.add('hidden');
 
         shaka.polyfill.installAll();
 
@@ -200,6 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function startVideoJs(url) {
         document.getElementById('vjs-wrap').classList.remove('hidden');
         document.getElementById('shaka-wrap').classList.add('hidden');
+        document.getElementById('mpegts-wrap').classList.add('hidden');
 
         var player = videojs('vjs-player', {
             controls: true,
@@ -221,14 +229,30 @@ document.addEventListener('DOMContentLoaded', function () {
         player.on('playing', function() {
             notifyParent({ type: 'PLAYER_STATE', state: 'playing' });
         });
+
         player.on('error', function() {
             var err = player.error();
+            if (err && err.code === 4) {
+                console.warn('Video.js failed, trying mpegts.js');
+                try {
+                    player.dispose();
+                } catch (e) {}
+                startMpegTs(url);
+                return;
+            }
             notifyParent({
                 type: 'PLAYER_STATE',
                 state: 'error',
                 code: err ? err.code : null,
                 httpStatus: (err && err.status) ? err.status : null
             });
+        });
+
+        player.reloadSourceOnError({
+            errorInterval: 5,
+            getSource: function(reload) {
+                reload({ src: url, type: detectType(url) });
+            }
         });
 
         window.addEventListener('message', function(event) {
@@ -252,6 +276,57 @@ document.addEventListener('DOMContentLoaded', function () {
 
         window.addEventListener('beforeunload', function() {
             try { player.dispose(); } catch (e) {}
+        });
+    }
+
+    function startMpegTs(url) {
+        document.getElementById('mpegts-wrap').classList.remove('hidden');
+        document.getElementById('vjs-wrap').classList.add('hidden');
+        document.getElementById('shaka-wrap').classList.add('hidden');
+
+        var videoElement = document.getElementById('mpegts-video');
+
+        if (!window.mpegts || !mpegts.getFeatureList().mseLivePlayback) {
+            notifyParent({ type: 'PLAYER_STATE', state: 'error', code: null, httpStatus: null });
+            return;
+        }
+
+        var player = mpegts.createPlayer({
+            type: 'mse',
+            isLive: true,
+            url: url
+        });
+
+        player.attachMediaElement(videoElement);
+        player.load();
+
+        player.on(mpegts.Events.ERROR, function(type, detail, info) {
+            notifyParent({ type: 'PLAYER_STATE', state: 'error', code: null, httpStatus: null });
+        });
+
+        videoElement.addEventListener('playing', function() {
+            notifyParent({ type: 'PLAYER_STATE', state: 'playing' });
+        });
+        videoElement.addEventListener('waiting', function() {
+            notifyParent({ type: 'PLAYER_STATE', state: 'buffering' });
+        });
+
+        window.addEventListener('message', function(event) {
+            if (PARENT_ORIGIN && event.origin !== PARENT_ORIGIN) return;
+            var msg = event.data;
+            if (!msg || msg.type !== 'SET_VOLUME') return;
+            if (typeof msg.muted === 'boolean') videoElement.muted = msg.muted;
+            if (typeof msg.volume === 'number') videoElement.volume = msg.volume;
+        });
+
+        videoElement.muted = true;
+        var p = videoElement.play();
+        if (p && p.catch) p.catch(function() {});
+
+        window.addEventListener('beforeunload', function() {
+            try {
+                player.destroy();
+            } catch (e) {}
         });
     }
 });
