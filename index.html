@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reproductor</title>
+<title>Shaka Player</title>
+<script defer src="https://cdn.jsdelivr.net/npm/mux.js@5.5.3/dist/mux.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/shaka-player.ui.js"></script>
 <link rel="stylesheet" type="text/css" referrerpolicy="no-referrer" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/controls.min.css">
 <style>
     :root {
@@ -30,7 +32,6 @@ document.addEventListener('keydown', function(e) {
 });
 document.addEventListener('dragstart', function(e) { e.preventDefault(); });
 </script>
-<script referrerpolicy="no-referrer" src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/shaka-player.ui.js"></script>
 <script>
 (async () => {
     var PARENT_ORIGIN = (function() {
