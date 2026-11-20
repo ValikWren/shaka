@@ -455,10 +455,12 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       var p = S = new sh.Player(v), cfg = {};
       if (opts.keys) cfg.drm = { clearKeys: opts.keys };
       try { p.configure(cfg); } catch (e) {}
-      p.addEventListener("error", function (ev) { if (p !== S || dead) return; var d = ev.detail; if (d && d.severity === 2) shakaFatal(d); });
+      p.addEventListener("error", function (ev) { if (p !== S || dead) return; var d = ev.detail; log("shaka evento error:", d && d.code, "severidad", d && d.severity, d && d.data); if (d && d.severity === 2) shakaFatal(d); });
+      log("shaka: cargando", u, "| claves:", opts.keys ? Object.keys(opts.keys).length : 0);
       p.load(u, null, opts.mime || undefined).then(function () {
         if (p !== S || dead) return;
         shakaVars(); shakaQ();
+        log("shaka: cargado |", VARS.length, "calidades");
         var pr = v.play(); if (pr && pr.catch) pr.catch(function () {});
       }).catch(function (err) { if (p !== S || dead) return; shakaFatal(err); });
     }
@@ -1013,6 +1015,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var urlParam = params.get('u');
     var needsDrm = params.get('drm') === '1';
     var nameParam = params.get('name');
+
+    if (params.get('tlo_cc_debug') === '1') {
+        ['log', 'info', 'warn', 'error', 'debug'].forEach(function (k) {
+            var o = console[k];
+            console[k] = function () {
+                try {
+                    notifyParent({ type: 'TLO_LOG', t: [].slice.call(arguments).map(function (x) { try { return typeof x === 'object' ? JSON.stringify(x) : String(x); } catch (e) { return String(x); } }).join(' ') });
+                } catch (e) {}
+                return o.apply(console, arguments);
+            };
+        });
+        window.addEventListener('error', function (e) { notifyParent({ type: 'TLO_LOG', t: 'error de pagina: ' + e.message }); });
+    }
 
     if (nameParam) {
         try { document.title = b64urlDecode(nameParam); } catch (e) {}
