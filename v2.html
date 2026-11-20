@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reproductor</title>
+<title>Hello There</title>
 
 <link rel="stylesheet" type="text/css" referrerpolicy="no-referrer" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/controls.min.css">
 <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
@@ -278,7 +278,6 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
     var NAME = opts.name || CFG.name || "";
 
     if (opts.srvFromUrl) NAME = domName(url) || NAME;
-    var AJAX = opts.ajax || CFG.ajax || "/wp-admin/admin-ajax.php";
     var cleanups = [], ivs = [], tms = [];
     function on(t, ev, fn, o) { t.addEventListener(ev, fn, o); cleanups.push(function () { t.removeEventListener(ev, fn, o); }); }
     function every(fn, ms) { var i = setInterval(fn, ms); ivs.push(i); return i; }
@@ -539,14 +538,9 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       return true;
     }
 
-    function post(data) {
-      var f = new FormData();
-      f.append("action", "teleonline_cc");
-      for (var k in data) f.append(k, data[k]);
-      return fetch(AJAX, { method: "POST", body: f, credentials: "same-origin" }).then(function (r) { return r.json(); });
-    }
+    function post() { return Promise.resolve({ ok: false, m: "no disponible" }); }
     function cargaMaster() {
-      if (ENG !== "native") { LSTAT = "ok"; return; }
+      { LSTAT = "ok"; return; }
       post({ m: "langs", u: masterUrl }).then(function (d) {
         if (dead) return;
         if (!d || !d.ok) { LSTAT = (d && d.m) || "sin respuesta"; return; }
@@ -911,7 +905,7 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
     on(root, "mouseenter", function () { boxAct = true; }); on(root, "mouseleave", function () { boxAct = false; });
     on(root, "focusin", function () { boxAct = true; }); on(root, "focusout", function () { boxAct = false; });
 
-    var dgN = 0, seeking = false, lnE = $("line");
+    var seeking = false, lnE = $("line");
     function lnPos(e) {
       var b = lnE.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - b.left) / (b.width || 1))), r = sRng();
       return { f: f, t: r ? r[0] + f * (r[1] - r[0]) : 0, r: r };
@@ -1026,19 +1020,13 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       var nA = aRows().length, nQ = qRows().length;
       btn("audio").style.display = nA ? "" : "none";
       btn("quality").style.display = nQ ? "" : "none";
-      $("ccw").style.display = ENG !== "native" ? "none" : "";
+      $("ccw").style.display = "none";
       btn("emis").style.display = eList().length > 1 ? "" : "none";
       btn("emis").classList.toggle("tlop-open", t === "EMISIÓN");
       var h = v.videoHeight, n = $("qn"); n.style.display = h ? "block" : "none"; n.textContent = h ? h + "p" : "";
       ccUpd();
 
       var rg = sRng(), okS = !!rg, fill = $("line").firstChild, bk = $("bk"), dr = $("dir");
-      if (DBG && ++dgN % 10 === 1) {
-        var dr0 = null, sk0 = null;
-        try { if (S) { var q = S.seekRange(); dr0 = q.start.toFixed(1) + " -> " + q.end.toFixed(1) + " (live=" + S.isLive() + ")"; } } catch (e) { dr0 = "error " + e; }
-        try { var k = v.seekable; sk0 = k.length ? k.start(0).toFixed(1) + " -> " + k.end(k.length - 1).toFixed(1) : "vacio"; } catch (e) { sk0 = "error"; }
-        log("rango | shaka:", dr0, "| video.seekable:", sk0, "| currentTime:", v.currentTime.toFixed(1), "| barra:", !!rg);
-      }
       if (rg) {
         var pc = Math.max(0, Math.min(100, (v.currentTime - rg[0]) / (rg[1] - rg[0]) * 100)).toFixed(1) + "%", bh = rg[1] - v.currentTime, isLv = bh <= 12;
         if (!seeking) { fill.style.width = pc; $("th").style.left = pc; }
@@ -1104,19 +1092,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var needsDrm = params.get('drm') === '1';
     var nameParam = params.get('name');
 
-    if (params.get('tlo_cc_debug') === '1') {
-        ['log', 'info', 'warn', 'error', 'debug'].forEach(function (k) {
-            var o = console[k];
-            console[k] = function () {
-                try {
-                    notifyParent({ type: 'TLO_LOG', t: [].slice.call(arguments).map(function (x) { try { return typeof x === 'object' ? JSON.stringify(x) : String(x); } catch (e) { return String(x); } }).join(' ') });
-                } catch (e) {}
-                return o.apply(console, arguments);
-            };
-        });
-        window.addEventListener('error', function (e) { notifyParent({ type: 'TLO_LOG', t: 'error de pagina: ' + e.message }); });
-    }
-
     if (nameParam) {
         try { document.title = b64urlDecode(nameParam); } catch (e) {}
     }
@@ -1134,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
-    var tloMode = params.get('tlo') !== '0' && window.tloPlayer;
+    var tloMode = !!window.tloPlayer;
 
     if (tloMode) {
         startTlo(mediaUrl, needsDrm);
