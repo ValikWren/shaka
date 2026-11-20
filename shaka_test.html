@@ -911,7 +911,7 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
     on(root, "mouseenter", function () { boxAct = true; }); on(root, "mouseleave", function () { boxAct = false; });
     on(root, "focusin", function () { boxAct = true; }); on(root, "focusout", function () { boxAct = false; });
 
-    var seeking = false, lnE = $("line");
+    var dgN = 0, seeking = false, lnE = $("line");
     function lnPos(e) {
       var b = lnE.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - b.left) / (b.width || 1))), r = sRng();
       return { f: f, t: r ? r[0] + f * (r[1] - r[0]) : 0, r: r };
@@ -1033,6 +1033,12 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       ccUpd();
 
       var rg = sRng(), okS = !!rg, fill = $("line").firstChild, bk = $("bk"), dr = $("dir");
+      if (DBG && ++dgN % 10 === 1) {
+        var dr0 = null, sk0 = null;
+        try { if (S) { var q = S.seekRange(); dr0 = q.start.toFixed(1) + " -> " + q.end.toFixed(1) + " (live=" + S.isLive() + ")"; } } catch (e) { dr0 = "error " + e; }
+        try { var k = v.seekable; sk0 = k.length ? k.start(0).toFixed(1) + " -> " + k.end(k.length - 1).toFixed(1) : "vacio"; } catch (e) { sk0 = "error"; }
+        log("rango | shaka:", dr0, "| video.seekable:", sk0, "| currentTime:", v.currentTime.toFixed(1), "| barra:", !!rg);
+      }
       if (rg) {
         var pc = Math.max(0, Math.min(100, (v.currentTime - rg[0]) / (rg[1] - rg[0]) * 100)).toFixed(1) + "%", bh = rg[1] - v.currentTime, isLv = bh <= 12;
         if (!seeking) { fill.style.width = pc; $("th").style.left = pc; }
