@@ -93,6 +93,8 @@
 .tlop-menu button:hover{background:rgba(255,255,255,.08)}
 .tlop-menu button.tlop-on{background:rgba(255,255,255,.10)}
 .tlop-menu button b{width:18px;color:var(--ac);display:flex}
+.tlop-menu button .tlop-ei{display:flex;flex:0 0 18px;width:18px;color:#aab2c0}
+.tlop-menu button.tlop-on .tlop-ei{color:#f3f5f8}
 .tlop-menu .tlop-nt{padding:8px 12px 10px;font-size:13px;line-height:1.45;color:#c3cad6}
 .tlop-menu .tlop-sep{height:1px;background:rgba(255,255,255,.1);margin:6px 4px}
 .tlop-panel{display:none;position:absolute;width:290px;overflow:auto;padding:12px;border-radius:14px;background:#000;border:0;box-shadow:0 12px 32px rgba(0,0,0,.45);z-index:8;color:#f3f5f8;font:13px 'Inter Variable',Inter,system-ui,sans-serif;cursor:default;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
@@ -224,6 +226,9 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
     audio: svg('<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>'),
     quality: svg('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'),
     pip: svg('<rect x="3" y="4" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="5" rx="1" fill="currentColor"/>'),
+    tv: svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>', 18, ""),
+    youtube: svg('<rect x="2.5" y="5" width="19" height="14" rx="4"/><polygon points="10 9 15 12 10 15 10 9" fill="currentColor"/>', 18, ""),
+    twitch: svg('<path d="M4 3h16v11l-4 4h-4l-3 3v-3H4z"/><path d="M12 7v4"/><path d="M16 7v4"/>', 18, ""),
     emis: svg('<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2"/><path d="M4.9 19.1a10 10 0 0 1 0-14.2"/>'),
     more: svg('<circle cx="12" cy="5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="19" r="1.6" fill="currentColor"/>'),
     full: svg('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
@@ -658,7 +663,7 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       pm.querySelector(".tlop-mx").onclick = function (ev) { ev.stopPropagation(); pm.style.display = "none"; };
       rows.forEach(function (r) {
         var b = document.createElement("button"); b.type = "button"; b.className = r.on ? "tlop-on" : "";
-        b.innerHTML = "<b>" + (r.on ? IC.check : "") + "</b>"; b.appendChild(document.createTextNode(r.t));
+        b.innerHTML = "<b>" + (r.on ? IC.check : "") + "</b>" + (r.ic && IC[r.ic] ? '<i class="tlop-ei">' + IC[r.ic] + "</i>" : ""); b.appendChild(document.createTextNode(r.t));
         b.onclick = function (ev) { ev.stopPropagation(); pm.style.display = "none"; r.f(); };
         pm.appendChild(b);
       });
@@ -732,8 +737,9 @@ document.addEventListener('dragstart', function(e) { e.preventDefault(); });
       var L = eList(), R = [];
       if (L.length < 2) return R;
       L.forEach(function (b, i) {
-        if (opts.emis) { R.push({ t: b.t || ("Emisión " + (i + 1)), on: !!b.on, f: function () { opts.emis.pick(i); } }); return; }
-        R.push({ t: (b.textContent || "").replace(/\s+/g, " ").trim() || ("Emisión " + (i + 1)), on: b.classList.contains("active-button"), f: function () { b.click(); } });
+        if (opts.emis) { R.push({ t: b.t || ("Emisión " + (i + 1)), ic: b.ic || "tv", on: !!b.on, f: function () { opts.emis.pick(i); } }); return; }
+        var tx = (b.textContent || "").replace(/\s+/g, " ").trim(), tp = b.getAttribute("data-tp") || (/twitch/i.test(tx) ? "twitch" : (/youtube/i.test(tx) ? "youtube" : "tv"));
+        R.push({ t: tx || ("Emisión " + (i + 1)), ic: tp, on: b.classList.contains("active-button"), f: function () { b.click(); } });
       });
       return R;
     }
