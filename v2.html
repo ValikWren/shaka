@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hello There</title>
+<title>Reproductor</title>
 
 <link rel="stylesheet" type="text/css" referrerpolicy="no-referrer" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/controls.min.css">
 <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
@@ -1377,7 +1377,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         function begin(engine) {
             cur = P.create(url, holder, {
-                name: title, engine: engine, keys: keys, srvFromUrl: true, emis: bridge,
+                name: title, engine: engine, keys: keys, srvFromUrl: !title, emis: bridge,
                 onFatal: function (f) {
                     var r = f.raw || {};
 
